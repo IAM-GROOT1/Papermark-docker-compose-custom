@@ -16,6 +16,14 @@ export const receiver = new Receiver({
   nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY || "",
 });
 
+/**
+ * [self-host] Whether QStash is available to schedule background jobs.
+ *
+ * A self-hosted instance normally has no QStash account, and callers that
+ * publish unconditionally turn every signup into a logged stack trace.
+ */
+export const isQstashConfigured = () => !!process.env.QSTASH_TOKEN;
+
 // [self-host] Lazy: the QStash client throws from its constructor when no token
 // is set, which aborted `next build` while collecting page data. QStash is only
 // used for scheduled jobs, which a self-hosted instance does not run.
