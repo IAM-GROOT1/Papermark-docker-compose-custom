@@ -49,6 +49,15 @@ export const sendVerificationRequestEmail = async (params: {
     { ex: TOKEN_EXPIRATION_SECONDS },
   );
 
+  // [self-host] Escape hatch for a fresh instance with no mail transport wired
+  // up yet: print the login code to the container logs
+  // (`docker compose logs app`) so the first account can still get in.
+  if (process.env.SELF_HOSTED_LOG_LOGIN_CODES === "true") {
+    console.log(
+      `\n[self-host] Login code for ${email}: ${code}\n[self-host] Or open: ${url}\n`,
+    );
+  }
+
   const emailTemplate = VerificationCodeEmail({
     email,
     code,

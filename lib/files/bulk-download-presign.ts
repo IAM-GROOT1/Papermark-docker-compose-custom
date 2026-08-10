@@ -65,6 +65,9 @@ export async function generateFreshPresignedUrl(
   const config = await getTeamStorageConfigById(teamId);
 
   const client = new S3Client({
+    // [self-host] honor a custom S3 endpoint (e.g. MinIO) when one is set
+    endpoint: config.endpoint || undefined,
+    forcePathStyle: config.forcePathStyle,
     region: s3Key.region,
     credentials: {
       accessKeyId: config.accessKeyId,

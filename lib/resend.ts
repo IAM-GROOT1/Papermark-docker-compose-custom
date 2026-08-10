@@ -4,6 +4,7 @@ import { render, toPlainText } from "react-email";
 import { Resend } from "resend";
 
 import prisma from "@/lib/prisma";
+import { isSmtpConfigured, sendEmailWithSmtp } from "@/lib/smtp";
 import { log, nanoid } from "@/lib/utils";
 
 export const resend = process.env.RESEND_API_KEY
@@ -39,9 +40,11 @@ export const sendEmail = async ({
   unsubscribeUrl?: string;
   idempotencyKey?: string;
 }) => {
-  if (!resend) {
-    // Throw an error if resend is not initialized
-    throw new Error("Resend not initialized");
+  // [self-host] Resend is optional here; SMTP is the fallback transport.
+  if (!resend && !isSmtpConfigured()) {
+    throw new Error(
+      "No email transport configured. Set RESEND_API_KEY or SMTP_HOST.",
+    );
   }
 
   const html = await render(react);
@@ -58,6 +61,25 @@ export const sendEmail = async ({
           : !!scheduledAt
             ? "Marc Seitz <marc@papermark.com>"
             : "Marc from Papermark <marc@papermark.com>");
+
+  // [self-host] Prefer Resend when it is configured, otherwise go out over SMTP.
+  if (!resend) {
+    try {
+      return await sendEmailWithSmtp({
+        to: test ? "delivered@example.com" : to,
+        subject,
+        html,
+        text: plainText,
+        from: fromAddress,
+        cc,
+        replyTo,
+        unsubscribeUrl,
+      });
+    } catch (exception) {
+      console.error("Failed to send email over SMTP:", exception);
+      throw exception;
+    }
+  }
 
   try {
     const { data, error } = await resend.emails.send(

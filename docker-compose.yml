@@ -1,0 +1,259 @@
+####
+#### Papermark — self-hosted stack
+####
+####  Host ports (all 9009+, as promised on the tin):
+####    9009  Papermark (app + object storage, through the proxy)
+####    9010  MinIO console (storage admin UI)
+####    9011  Postgres   — commented out, uncomment only if you need it
+####    9012  Redis      — commented out, uncomment only if you need it
+####
+####  Everything you need to change lives in .env — start from .env.example.
+####
+
+name: papermark
+
+x-app-env: &app-env
+  # --- app ---------------------------------------------------------------
+  NODE_ENV: production
+  NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env}
+  NEXTAUTH_URL: ${PAPERMARK_URL:?set PAPERMARK_URL in .env}
+  NEXT_PUBLIC_BASE_URL: ${PAPERMARK_URL}
+  NEXT_PUBLIC_MARKETING_URL: ${PAPERMARK_URL}
+  NEXT_PUBLIC_APP_BASE_HOST: ${PAPERMARK_HOST:?set PAPERMARK_HOST in .env}
+  NEXT_PUBLIC_WEBHOOK_BASE_URL: ${PAPERMARK_URL}
+  NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${PAPERMARK_HOST}
+
+  # --- database ----------------------------------------------------------
+  # No pgbouncer in this stack, so the pooled and direct URLs are the same.
+  POSTGRES_PRISMA_URL: postgresql://papermark:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/papermark
+  POSTGRES_PRISMA_URL_NON_POOLING: postgresql://papermark:${POSTGRES_PASSWORD}@postgres:5432/papermark
+  POSTGRES_PRISMA_SHADOW_URL: postgresql://papermark:${POSTGRES_PASSWORD}@postgres:5432/papermark_shadow
+
+  # --- redis -------------------------------------------------------------
+  # Papermark talks to Upstash's HTTP Redis API. `srh` speaks that API in front
+  # of a plain Redis container, so no Upstash account is needed.
+  UPSTASH_REDIS_REST_URL: http://srh:80
+  UPSTASH_REDIS_REST_TOKEN: ${REDIS_TOKEN:?set REDIS_TOKEN in .env}
+  UPSTASH_REDIS_REST_LOCKER_URL: http://srh:80
+  UPSTASH_REDIS_REST_LOCKER_TOKEN: ${REDIS_TOKEN}
+
+  # --- storage (MinIO, reached through the proxy) -------------------------
+  NEXT_PUBLIC_UPLOAD_TRANSPORT: s3
+  # Presigned URLs are signed against this origin, and both your browser and
+  # the app container must be able to reach it. Hence: the public URL.
+  NEXT_PRIVATE_UPLOAD_ENDPOINT: ${PAPERMARK_URL}
+  NEXT_PRIVATE_UPLOAD_FORCE_PATH_STYLE: "true"
+  NEXT_PRIVATE_UPLOAD_REGION: ${STORAGE_REGION:-us-east-1}
+  NEXT_PRIVATE_UPLOAD_BUCKET: ${STORAGE_BUCKET:-papermark-storage}
+  NEXT_PRIVATE_ARCHIVE_BUCKET: ${STORAGE_BUCKET:-papermark-storage}
+  NEXT_PRIVATE_UPLOAD_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY:?set STORAGE_ACCESS_KEY in .env}
+  NEXT_PRIVATE_UPLOAD_SECRET_ACCESS_KEY: ${STORAGE_SECRET_KEY:?set STORAGE_SECRET_KEY in .env}
+  # Deliberately empty: a value here switches the app to CloudFront signing.
+  NEXT_PRIVATE_UPLOAD_DISTRIBUTION_HOST: ""
+
+  # --- secrets -----------------------------------------------------------
+  NEXT_PRIVATE_DOCUMENT_PASSWORD_KEY: ${DOCUMENT_PASSWORD_KEY:?set DOCUMENT_PASSWORD_KEY in .env}
+  NEXT_PRIVATE_VERIFICATION_SECRET: ${VERIFICATION_SECRET:?set VERIFICATION_SECRET in .env}
+  INTERNAL_API_KEY: ${INTERNAL_API_KEY:?set INTERNAL_API_KEY in .env}
+  REVALIDATE_TOKEN: ${REVALIDATE_TOKEN:?set REVALIDATE_TOKEN in .env}
+
+  # --- self-host behaviour ----------------------------------------------
+  SELF_HOSTED_WORKER: "true"
+  SELF_HOSTED_LOG_LOGIN_CODES: ${LOG_LOGIN_CODES:-true}
+
+  # --- email (optional) --------------------------------------------------
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:-Papermark <papermark@localhost>}
+  SMTP_SECURE: ${SMTP_SECURE:-}
+  SMTP_REJECT_UNAUTHORIZED: ${SMTP_REJECT_UNAUTHORIZED:-true}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+
+  # --- third-party sign-in (optional) ------------------------------------
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+
+services:
+  ##
+  ## The only thing you expose. Serves the app and the object storage from one
+  ## origin — see docker/nginx.conf.template for why that matters.
+  ##
+  proxy:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+      - minio
+    environment:
+      PROXY_PORT: ${PAPERMARK_PORT:-9009}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-papermark-storage}
+    volumes:
+      - ./docker/nginx.conf.template:/etc/nginx/templates/papermark.conf.template:ro
+    ports:
+      - "${PAPERMARK_PORT:-9009}:${PAPERMARK_PORT:-9009}"
+    networks:
+      papermark:
+        ipv4_address: 172.29.29.10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_* is baked into the client bundle at build time. Change
+        # PAPERMARK_URL and you must rebuild: `docker compose build app`.
+        NEXT_PUBLIC_BASE_URL: ${PAPERMARK_URL}
+        NEXT_PUBLIC_MARKETING_URL: ${PAPERMARK_URL}
+        NEXT_PUBLIC_APP_BASE_HOST: ${PAPERMARK_HOST}
+        NEXT_PUBLIC_WEBHOOK_BASE_URL: ${PAPERMARK_URL}
+        NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${PAPERMARK_HOST}
+    image: papermark-selfhosted:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      srh:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    environment: *app-env
+    # Lets the app resolve its own public hostname to the proxy from inside the
+    # Docker network. Harmless no-op when PAPERMARK_HOST is an IP address.
+    extra_hosts:
+      - "${PAPERMARK_HOST}:172.29.29.10"
+    networks:
+      - papermark
+
+  ##
+  ## Stands in for Trigger.dev: pokes the app so it renders newly uploaded PDFs
+  ## into page images. Without this, uploads never become viewable.
+  ##
+  worker:
+    # Same image as `app`; compose builds it once.
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_URL: ${PAPERMARK_URL}
+        NEXT_PUBLIC_MARKETING_URL: ${PAPERMARK_URL}
+        NEXT_PUBLIC_APP_BASE_HOST: ${PAPERMARK_HOST}
+        NEXT_PUBLIC_WEBHOOK_BASE_URL: ${PAPERMARK_URL}
+        NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${PAPERMARK_HOST}
+    image: papermark-selfhosted:latest
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+    entrypoint: ["/bin/sh", "/app/worker.sh"]
+    environment:
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      WORKER_TARGET_URL: http://app:3000
+      WORKER_INTERVAL_SECONDS: ${WORKER_INTERVAL_SECONDS:-10}
+    volumes:
+      - ./docker/worker.sh:/app/worker.sh:ro
+    networks:
+      - papermark
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: papermark
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: papermark
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U papermark -d papermark"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # ports:
+    #   - "9011:5432"
+    networks:
+      - papermark
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # ports:
+    #   - "9012:6379"
+    networks:
+      - papermark
+
+  ##
+  ## Upstash-compatible HTTP API in front of plain Redis. Papermark's Redis
+  ## client only speaks Upstash's REST protocol, not the Redis wire protocol.
+  ##
+  srh:
+    image: hiett/serverless-redis-http:latest
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: ${REDIS_TOKEN}
+      SRH_CONNECTION_STRING: redis://redis:6379
+    networks:
+      - papermark
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      # Console only. The S3 API is reached through the proxy on 9009.
+      - "${MINIO_CONSOLE_PORT:-9010}:9001"
+    networks:
+      - papermark
+
+  ##
+  ## Creates the bucket and its CORS/lifecycle setup, then exits.
+  ##
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-papermark-storage}
+    entrypoint: ["/bin/sh", "/init.sh"]
+    volumes:
+      - ./docker/minio-init.sh:/init.sh:ro
+    networks:
+      - papermark
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+
+networks:
+  papermark:
+    # Fixed subnet so the proxy can have a stable address for `extra_hosts`.
+    ipam:
+      config:
+        - subnet: 172.29.29.0/24

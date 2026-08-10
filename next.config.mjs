@@ -1,5 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // [self-host] `next build` emits a minimal, self-contained server bundle in
+  // .next/standalone so the Docker runtime stage does not need node_modules.
+  // Opt-in via env so Vercel builds are unaffected.
+  output:
+    process.env.NEXT_OUTPUT_STANDALONE === "true" ? "standalone" : undefined,
+  // [self-host] Lint findings should not stop someone's Docker image from
+  // building. Type errors still do — those catch real breakage.
+  eslint: {
+    ignoreDuringBuilds: process.env.NEXT_OUTPUT_STANDALONE === "true",
+  },
   reactStrictMode: true,
   pageExtensions: ["js", "jsx", "ts", "tsx", "mdx"],
   transpilePackages: ["@boxyhq/saml-jackson", "@libpdf/core"],
@@ -459,6 +469,26 @@ function prepareRemotePatterns() {
       protocol: "https",
       hostname: "36so9a8uzykxknsu.public.blob.vercel-storage.com",
     });
+  }
+
+  // [self-host] Allow images served from the deployment's own origin. A
+  // self-hosted stack serves storage (MinIO) through the same host as the app,
+  // often over plain http on a LAN, which none of the hardcoded https patterns
+  // above cover.
+  for (const url of [
+    process.env.NEXT_PUBLIC_BASE_URL,
+    process.env.NEXT_PUBLIC_MARKETING_URL,
+  ]) {
+    if (!url) continue;
+    try {
+      const { protocol, hostname } = new URL(url);
+      patterns.push({
+        protocol: protocol.replace(":", ""),
+        hostname,
+      });
+    } catch {
+      // ignore malformed URLs, they are validated elsewhere
+    }
   }
 
   return patterns;

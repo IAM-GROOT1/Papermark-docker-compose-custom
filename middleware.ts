@@ -20,6 +20,16 @@ function isAnalyticsPath(path: string) {
 }
 
 function isCustomDomain(host: string) {
+  // [self-host] Outside of papermark.com the check below classifies *every*
+  // host as a customer custom domain, which routes the whole app through
+  // DomainMiddleware and breaks a self-hosted deployment served from, say,
+  // `papermark.local:9009`. Treat the deployment's own host as the app host.
+  const appHost = process.env.NEXT_PUBLIC_APP_BASE_HOST?.toLowerCase().trim();
+  const hostname = host?.split(":")[0]?.toLowerCase().trim();
+  if (appHost && hostname === appHost) {
+    return false;
+  }
+
   return (
     (process.env.NODE_ENV === "development" &&
       (host?.includes(".local") || host?.includes("papermark.dev"))) ||

@@ -1,0 +1,11 @@
+# [self-host] Scripts that run inside Linux containers must keep LF endings.
+# Checked out with CRLF on Windows, `#!/bin/sh\r` fails with a baffling
+# "no such file or directory" — the classic hour-long Docker debugging session.
+*.sh              text eol=lf
+Dockerfile        text eol=lf
+docker-compose.yml text eol=lf
+*.template        text eol=lf
+.env.example      text eol=lf
+
+# PowerShell is happier the other way around.
+*.ps1             text eol=crlf

@@ -10,6 +10,7 @@ import { hashToken } from "@/lib/api/auth/token";
 import { enforceDocumentMemberScope } from "@/lib/api/rbac/guard";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import prisma from "@/lib/prisma";
+import { isTriggerConfigured } from "@/lib/self-host/trigger-dispatch";
 import { processVideo } from "@/lib/trigger/optimize-video-files";
 import { convertPdfToImageRoute } from "@/lib/trigger/pdf-to-image-route";
 import { CustomUser } from "@/lib/types";
@@ -176,7 +177,9 @@ export default async function handle(
 
       const isMarkdown = isMarkdownFile({ name: url, contentType });
 
+      // [self-host] each dispatch is guarded on Trigger.dev being set up
       if (
+        isTriggerConfigured() &&
         (type === "docs" || type === "slides") &&
         !isDownloadOnlyByExtension &&
         !isMarkdown
@@ -202,6 +205,7 @@ export default async function handle(
       }
 
       if (
+        isTriggerConfigured() &&
         type === "video" &&
         contentType !== "video/mp4" &&
         contentType?.startsWith("video/")
@@ -228,7 +232,7 @@ export default async function handle(
       }
 
       // trigger document uploaded event to trigger convert-pdf-to-image job
-      if (type === "pdf") {
+      if (isTriggerConfigured() && type === "pdf") {
         await convertPdfToImageRoute.trigger(
           {
             documentId: documentId,

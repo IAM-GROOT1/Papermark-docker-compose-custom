@@ -8,6 +8,12 @@ export interface StorageConfig {
   accessKeyId: string;
   secretAccessKey: string;
   endpoint?: string;
+  /**
+   * [self-host] Use path-style addressing (`{endpoint}/{bucket}/{key}`) instead
+   * of virtual-hosted style (`{bucket}.{endpoint}/{key}`). Required by MinIO
+   * and most other S3-compatible servers that are not AWS.
+   */
+  forcePathStyle?: boolean;
   distributionHost?: string;
   advancedDistributionHost?: string;
   distributionKeyId?: string;
@@ -78,6 +84,8 @@ export function getStorageConfig(storageRegion?: string): StorageConfig {
     accessKeyId: getAccessKeyId(),
     secretAccessKey: getSecretAccessKey(),
     endpoint: process.env[`NEXT_PRIVATE_UPLOAD_ENDPOINT${suffix}`],
+    forcePathStyle:
+      process.env[`NEXT_PRIVATE_UPLOAD_FORCE_PATH_STYLE${suffix}`] === "true",
     distributionHost:
       process.env[`NEXT_PRIVATE_UPLOAD_DISTRIBUTION_HOST${suffix}`],
     advancedDistributionHost:

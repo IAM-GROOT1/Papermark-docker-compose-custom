@@ -50,6 +50,9 @@ next-env.d.ts
 pages/api/scripts
 scripts/*
 !scripts/generate-openapi.ts
+# [self-host] packaging helpers
+!scripts/generate-secrets.sh
+!scripts/generate-secrets.ps1
 !scripts/mcp-smoke.mjs
 !scripts/check-tool-contracts.sh
 !scripts/check-brand-logo.ts

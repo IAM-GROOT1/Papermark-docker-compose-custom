@@ -8,6 +8,10 @@ import { validateExternalDocumentUrl } from "@/lib/api/documents/validate-extern
 import { DocumentData } from "@/lib/documents/create-document";
 import { getFeatureFlags } from "@/lib/featureFlags";
 import prisma from "@/lib/prisma";
+import {
+  isTriggerConfigured,
+  logSkippedConversion,
+} from "@/lib/self-host/trigger-dispatch";
 import { processVideo } from "@/lib/trigger/optimize-video-files";
 import { convertPdfToImageRoute } from "@/lib/trigger/pdf-to-image-route";
 import { getExtension } from "@/lib/utils";
@@ -143,7 +147,9 @@ export const processDocument = async ({
 
   // Trigger appropriate conversion tasks based on document type
   // Check if it's a Keynote file (slides type with Keynote content type)
+  // [self-host] each dispatch is guarded on Trigger.dev actually being set up
   if (
+    isTriggerConfigured() &&
     type === "slides" &&
     (contentType === "application/vnd.apple.keynote" ||
       contentType === "application/x-iwork-keynote-sffkey")
@@ -167,6 +173,7 @@ export const processDocument = async ({
       },
     );
   } else if (
+    isTriggerConfigured() &&
     (type === "docs" || type === "slides") &&
     !isDownloadOnlyByExtension &&
     !isMarkdown
@@ -189,9 +196,16 @@ export const processDocument = async ({
         concurrencyKey: teamId,
       },
     );
+  } else if (
+    // [self-host] no Trigger.dev, no Office/Keynote/video conversion
+    !isTriggerConfigured() &&
+    (type === "docs" || type === "slides" || type === "video")
+  ) {
+    logSkippedConversion(type);
   }
 
   if (
+    isTriggerConfigured() &&
     type === "video" &&
     contentType !== "video/mp4" &&
     contentType?.startsWith("video/")
@@ -218,7 +232,7 @@ export const processDocument = async ({
   }
 
   // skip triggering convert-pdf-to-image job for "notion" / "excel" documents
-  if (type === "pdf") {
+  if (isTriggerConfigured() && type === "pdf") {
     await convertPdfToImageRoute.trigger(
       {
         documentId: document.id,

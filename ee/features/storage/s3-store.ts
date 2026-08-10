@@ -10,6 +10,19 @@ import type { Readable } from "stream";
 import { getFeatureFlags } from "@/lib/featureFlags";
 
 /**
+ * [self-host] Applies a custom S3 endpoint (e.g. MinIO) to a client config when
+ * one is configured. Left untouched for AWS, where the endpoint is derived from
+ * the region.
+ */
+const withEndpoint = (s3Config: any, config: StorageConfig) => {
+  if (config.endpoint) {
+    s3Config.endpoint = config.endpoint;
+    s3Config.forcePathStyle = config.forcePathStyle;
+  }
+  return s3Config;
+};
+
+/**
  * Team-aware S3Store that routes uploads to different S3 buckets
  * based on team storage preferences. Extends S3Store and dynamically
  * switches the S3 client and bucket based on team feature flags.
@@ -37,7 +50,7 @@ export class MultiRegionS3Store extends S3Store {
 
     super({
       partSize: 8 * 1024 * 1024, // 8MiB parts
-      s3ClientConfig: superS3Config,
+      s3ClientConfig: withEndpoint(superS3Config, euConfig),
     });
 
     // Store configurations
@@ -53,7 +66,7 @@ export class MultiRegionS3Store extends S3Store {
       },
     };
 
-    this.euClient = new S3(euS3Config);
+    this.euClient = new S3(withEndpoint(euS3Config, euConfig));
 
     // Initialize US configuration and client
     try {
@@ -69,7 +82,7 @@ export class MultiRegionS3Store extends S3Store {
         },
       };
 
-      this.usClient = new S3(usS3Config);
+      this.usClient = new S3(withEndpoint(usS3Config, this.usConfig));
     } catch (error) {
       this.usConfig = euConfig;
       this.usClient = this.euClient;
