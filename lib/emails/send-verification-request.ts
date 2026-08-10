@@ -63,6 +63,20 @@ export const sendVerificationRequestEmail = async (params: {
     code,
   });
 
+  // [self-host] Having no mail transport is a supported configuration, not a
+  // failure: the code was printed above and that is how you sign in. Attempting
+  // the send anyway logged an error stack on every login, which reads like a
+  // broken instance when nothing is wrong.
+  const hasEmailTransport =
+    !!process.env.RESEND_API_KEY || !!process.env.SMTP_HOST;
+
+  if (!hasEmailTransport) {
+    console.log(
+      "[self-host] No email transport configured, so the code above was not emailed. Set SMTP_HOST (or RESEND_API_KEY) to deliver login codes by mail.",
+    );
+    return;
+  }
+
   // Use waitUntil to send email in background after response is sent
   // This keeps the serverless function alive until the email is sent
   waitUntil(
