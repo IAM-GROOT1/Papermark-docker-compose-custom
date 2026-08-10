@@ -58,6 +58,12 @@ ARG NEXT_PUBLIC_APP_BASE_HOST=localhost
 ARG NEXT_PUBLIC_WEBHOOK_BASE_URL=http://localhost:9009
 ARG NEXT_PUBLIC_WEBHOOK_BASE_HOST=localhost
 
+# Cap the heap so a runaway build fails fast with a clear V8 error instead of
+# tripping the kernel OOM killer, which on a small box takes the Docker daemon
+# with it. Pair with experimental.cpus in next.config.mjs.
+ARG NODE_BUILD_MEMORY_MB=3584
+ENV NODE_OPTIONS="--dns-result-order=ipv4first --max-old-space-size=${NODE_BUILD_MEMORY_MB}"
+
 ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL} \
     NEXT_PUBLIC_MARKETING_URL=${NEXT_PUBLIC_MARKETING_URL} \
     NEXT_PUBLIC_APP_BASE_HOST=${NEXT_PUBLIC_APP_BASE_HOST} \

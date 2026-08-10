@@ -216,6 +216,57 @@ Next.js needs a few GB. Give Docker more, or build with
 
 ---
 
+## Upstream does not build
+
+Worth knowing before you judge the size of this diff: **`papermark/papermark`
+cannot be built as published.** A clean clone of upstream `main` fails
+`next build`, for reasons that have nothing to do with Docker:
+
+1. **43 modules are imported but never published.** The whole of
+   `ee/features/branding`, `request-lists` and `redaction`, plus `lib/oauth`,
+   `lib/api/errors`, `lib/dataroom/apply-default-permissions` and others. They
+   live in Papermark's private enterprise repo — the paths 404 on GitHub. All 43
+   are reconstructed here (see below).
+2. **`@react-email/components` is used by 8 files but appears nowhere in
+   `package.json`.** (The `@react-email/ui` dependency that *is* declared is
+   imported by nothing.)
+3. **Optional integrations are hard build-time requirements.** The OpenAI,
+   QStash and Hanko clients are all constructed at module scope and throw
+   without credentials. Since `next build` imports every route to collect page
+   data, a missing *optional* key aborts the entire build. Now constructed
+   lazily, or with placeholders.
+4. **Roughly 30 type errors**, mostly upstream's Stripe integration failing
+   against the `stripe` major upstream itself pins (`current_period_*` moved off
+   `Subscription`, `discount` → `discounts`, `InvoiceLineItem.price` removed, a
+   hardcoded `apiVersion` the installed types reject).
+5. **Two rate limiters are referenced but never defined** — `bulkLinkImport` and
+   `domainVerification`. `checkRateLimit` fails open, so upstream silently
+   applies *no* rate limiting on those two endpoints.
+
+None of this is visible on Vercel, where every key is set and the private
+modules are present.
+
+### The reconstructed modules
+
+Reimplemented properly, because they sit on the critical path — behaviour was
+derived from the Prisma schema and every call site:
+
+| Module | What it does |
+|---|---|
+| `branding/lib/brand-logo` | Logo resolution; dataroom branding overrides team branding |
+| `branding/lib/resolve-public-link-meta` | OG tags + favicon: link → brand → default |
+| `branding/lib/dataroom-viewer-layout` | Layout vocabulary and preset table |
+| `branding/lib/dataroom-banner` | Image / video / YouTube banner classification |
+| `lib/api/errors` | `PapermarkApiError` with status mapping |
+| `lib/oauth/scopes`, `lib/api/auth/restricted-tokens` | API token scopes |
+
+Everything else is an inert stub that renders nothing and says so: redaction,
+request lists, the dataroom Q&A sidebar, confidential view, the branding editor
+widgets, dataroom analytics, trial/lifecycle emails, Office→PDF conversion.
+
+**Those features are gone, not merely disabled.** If you need them, get a
+licence from Papermark.
+
 ## What was changed from upstream
 
 Kept deliberately small, so pulling upstream changes stays possible. Every patch
@@ -224,6 +275,12 @@ is marked with a `[self-host]` comment.
 - `middleware.ts` — treat `NEXT_PUBLIC_APP_BASE_HOST` as the app's own host.
   Upstream classifies any non-papermark.com host as a customer custom domain,
   which breaks a self-hosted deployment outright.
+- `lib/openai.ts`, `ee/features/ai/lib/models/openai.ts`, `lib/cron/index.ts`,
+  `lib/dub.ts`, `lib/hanko.ts` — construct optional SDK clients lazily (or with
+  placeholders) instead of at module scope, via `lib/self-host/lazy-client.ts`,
+  so a missing optional key no longer aborts the build.
+- `ee/features/security/lib/ratelimit.ts` — define the two limiters that are
+  referenced but missing.
 - `next.config.mjs` — opt-in `output: "standalone"` for a slim image, plus
   allow images served from the deployment's own origin.
 - `ee/features/storage/config.ts`, `lib/files/aws-client.ts`,
