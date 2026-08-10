@@ -25,6 +25,34 @@ Vercel, Trigger.dev, Upstash, AWS and Resend.
 
 ---
 
+## Does it actually work?
+
+Yes — verified by running it, not just by building it. On a Debian/WSL2 box with
+Docker 29, from a clean `git clone` of this repo:
+
+```
+image build .................. OK   (995 MB)
+131 migrations applied ....... OK
+7 containers healthy ......... OK
+sign in by email code ........ OK   (code read from the app logs)
+team auto-created ............ OK
+presigned upload to MinIO .... OK   (HTTP 200, through the proxy)
+PDF -> page images ........... OK   (2 pages rendered in ~6s by the worker)
+objects in storage ........... OK   (page-1.png 33KB, page-2.png 34KB)
+public view link ............. OK   (HTTP 200)
+restart, data survives ....... OK   (docker compose down && up)
+error scan after restart ..... clean
+```
+
+Getting there took fixing **12 separate upstream defects**, several of which
+make the public repo unbuildable and one of which broke sign-in entirely. See
+the next section.
+
+**What that does not prove:** it was tested on one machine, with one small PDF,
+by one user, over HTTP on a LAN. Data rooms, large files, many concurrent
+viewers, custom domains and HTTPS are all untested. Treat it as "the core path
+demonstrably works", not "production-ready".
+
 ## What you get
 
 Everything runs in containers on your own machine. No SaaS accounts required.
@@ -207,9 +235,16 @@ and does the conversion in-process; if the app can't fetch its own storage URLs
 **Login code never arrives.**
 `docker compose logs app | grep "Login code"`.
 
-**The build runs out of memory.**
-Next.js needs a few GB. Give Docker more, or build with
-`NODE_OPTIONS=--max-old-space-size=4096`.
+**The build runs out of memory / dies with no error.**
+Already handled: the build is capped to one worker with a 4 GB heap. If your
+server is bigger and you want it faster, raise them:
+
+```bash
+NEXT_BUILD_CPUS=4 docker compose build app
+```
+
+If it still dies leaving a truncated log, that is the kernel OOM killer taking
+the Docker daemon with it. Add swap — 8 GB is plenty.
 
 **Everything redirects oddly / the app thinks it's on a custom domain.**
 `PAPERMARK_HOST` must match the host you're actually browsing to, exactly.
@@ -242,9 +277,22 @@ cannot be built as published.** A clean clone of upstream `main` fails
 5. **Two rate limiters are referenced but never defined** — `bulkLinkImport` and
    `domainVerification`. `checkRateLimit` fails open, so upstream silently
    applies *no* rate limiting on those two endpoints.
+6. **Stripe breaks sign-in.** `ee/stripe/index.ts` builds two clients at module
+   scope, and Stripe's constructor throws on an empty key. `/api/auth/csrf`
+   transitively imports it, so with no Stripe account **every login attempt
+   returns 500**. The image builds perfectly with this bug in place — it only
+   shows up when you run the thing.
+7. **The Next.js build OOMs on a small machine.** It sizes its worker pool from
+   the CPU count, so a many-core host exhausts 8 GB and the kernel OOM killer
+   takes out the Docker daemon — leaving a truncated log and no error.
 
 None of this is visible on Vercel, where every key is set and the private
 modules are present.
+
+The recurring theme in 3, 6 and 7: **optional integrations are wired as hard
+requirements.** OpenAI, QStash, Hanko, Slack and Stripe are all constructed
+eagerly at import, so a missing optional key takes down the build or the app.
+They are all lazy here, via `lib/self-host/lazy-client.ts`.
 
 ### The reconstructed modules
 
