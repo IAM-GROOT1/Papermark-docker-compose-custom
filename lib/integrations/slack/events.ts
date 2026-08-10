@@ -1,15 +1,27 @@
 import prisma from "@/lib/prisma";
 
-import { SlackClient } from "./client";
+import { SlackClient, getSlackClient } from "./client";
 import { getSlackEnv } from "./env";
 import { createSlackMessage } from "./templates";
 import { SlackEventData, SlackIntegrationServer } from "./types";
 
 export class SlackEventManager {
-  private client: SlackClient;
+  // [self-host] Resolved on first use rather than in the constructor.
+  //
+  // `slackEventManager` at the bottom of this file is instantiated at module
+  // scope, and SlackClient's constructor throws without SLACK_CLIENT_ID /
+  // SLACK_CLIENT_SECRET. Since `next build` imports every route to collect page
+  // data, that made a Slack app mandatory just to build — and made the whole
+  // /api/views-dataroom route unloadable at runtime without one.
+  //
+  // client.ts already exposes a lazy getSlackClient(); this just uses it.
+  private _client: SlackClient | null = null;
 
-  constructor() {
-    this.client = new SlackClient();
+  private get client(): SlackClient {
+    if (!this._client) {
+      this._client = getSlackClient();
+    }
+    return this._client;
   }
 
   /**
