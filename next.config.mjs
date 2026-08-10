@@ -353,7 +353,7 @@ const nextConfig = {
     // keeps `docker compose build` viable on a modest home-lab server. Costs
     // some build time; a build that finishes is worth more.
     ...(process.env.NEXT_OUTPUT_STANDALONE === "true"
-      ? { cpus: Number(process.env.NEXT_BUILD_CPUS || 2), workerThreads: false }
+      ? { cpus: Number(process.env.NEXT_BUILD_CPUS || 1), workerThreads: false }
       : {}),
     // Rewrite barrel imports (e.g. `import { Icon } from "lucide-react"`) to
     // direct submodule imports at build time. Cuts dev boot, cold starts and
