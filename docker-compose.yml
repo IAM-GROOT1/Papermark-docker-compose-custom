@@ -95,7 +95,13 @@ services:
       - "${PAPERMARK_PORT:-9009}:${PAPERMARK_PORT:-9009}"
     networks:
       papermark:
-        ipv4_address: 172.29.29.10
+        # Answering to PAPERMARK_HOST inside the network is what lets the app
+        # container fetch its own presigned storage URLs. An alias does this
+        # without pinning a subnet, so the stack cannot collide with whatever
+        # else is already running on the host. Harmless when PAPERMARK_HOST is
+        # an IP — nothing resolves it, the address is used directly.
+        aliases:
+          - "${PAPERMARK_HOST}"
 
   app:
     build:
@@ -119,10 +125,6 @@ services:
       minio-init:
         condition: service_completed_successfully
     environment: *app-env
-    # Lets the app resolve its own public hostname to the proxy from inside the
-    # Docker network. Harmless no-op when PAPERMARK_HOST is an IP address.
-    extra_hosts:
-      - "${PAPERMARK_HOST}:172.29.29.10"
     networks:
       - papermark
 
@@ -252,8 +254,8 @@ volumes:
   minio-data:
 
 networks:
+  # No fixed subnet on purpose: pinning one makes `docker compose up` fail with
+  # "Pool overlaps with other one on this address space" whenever that range is
+  # already taken on the host. Docker picks a free range itself, and the proxy's
+  # network alias handles name resolution.
   papermark:
-    # Fixed subnet so the proxy can have a stable address for `extra_hosts`.
-    ipam:
-      config:
-        - subnet: 172.29.29.0/24
