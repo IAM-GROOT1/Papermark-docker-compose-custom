@@ -95,9 +95,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modul
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
-# next/image needs sharp for on-the-fly optimization in a standalone server.
-RUN npm install --no-audit --no-fund --omit=dev sharp \
-  && chown -R nextjs:nodejs /app/node_modules
+# next/image wants sharp for on-the-fly optimization. Installed into its own
+# directory rather than /app: `npm install` inside the standalone bundle would
+# reconcile against the app's package.json and drag the whole tree back in.
+RUN mkdir -p /opt/sharp \
+  && cd /opt/sharp \
+  && npm install --no-audit --no-fund --no-save --no-package-lock sharp \
+  && chown -R nextjs:nodejs /opt/sharp /app/node_modules
+ENV NEXT_SHARP_PATH=/opt/sharp/node_modules/sharp
 
 COPY --chown=nextjs:nodejs docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
