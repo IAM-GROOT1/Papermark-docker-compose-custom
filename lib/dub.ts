@@ -1,8 +1,14 @@
 import { Dub } from "dub";
 
-export const dub = new Dub({
-  token: process.env.DUB_API_KEY,
-});
+import { lazyClient } from "@/lib/self-host/lazy-client";
+
+// [self-host] Lazy, so a missing DUB_API_KEY cannot abort `next build`.
+export const dub = lazyClient(
+  () =>
+    new Dub({
+      token: process.env.DUB_API_KEY,
+    }),
+);
 
 export async function getDubDiscountForExternalUserId(externalId: string) {
   try {

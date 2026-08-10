@@ -2,6 +2,8 @@ import { Receiver } from "@upstash/qstash";
 import { Client } from "@upstash/qstash";
 import Bottleneck from "bottleneck";
 
+import { lazyClient } from "@/lib/self-host/lazy-client";
+
 // we're using Bottleneck to avoid running into Resend's rate limit of 10 req/s
 export const limiter = new Bottleneck({
   maxConcurrent: 1, // maximum concurrent requests
@@ -14,6 +16,12 @@ export const receiver = new Receiver({
   nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY || "",
 });
 
-export const qstash = new Client({
-  token: process.env.QSTASH_TOKEN || "",
-});
+// [self-host] Lazy: the QStash client throws from its constructor when no token
+// is set, which aborted `next build` while collecting page data. QStash is only
+// used for scheduled jobs, which a self-hosted instance does not run.
+export const qstash = lazyClient(
+  () =>
+    new Client({
+      token: process.env.QSTASH_TOKEN || "",
+    }),
+);
