@@ -23,8 +23,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 
+# Docker's embedded DNS often hands back AAAA records for the npm registry even
+# where IPv6 egress does not actually work, which shows up as a long stall and
+# then ECONNRESET partway through a ~1500-package install. Prefer IPv4 and give
+# npm a real retry budget so one dropped socket does not cost a full rebuild.
+ENV NODE_OPTIONS=--dns-result-order=ipv4first
+
 # `postinstall` runs `prisma generate`, so the schema has to be in place above.
-RUN npm ci --no-audit --no-fund
+RUN npm ci --no-audit --no-fund \
+      --fetch-retries=5 \
+      --fetch-retry-mintimeout=20000 \
+      --fetch-retry-maxtimeout=180000 \
+      --fetch-timeout=600000
 
 ########################
 # 2. Build
@@ -98,9 +108,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 # next/image wants sharp for on-the-fly optimization. Installed into its own
 # directory rather than /app: `npm install` inside the standalone bundle would
 # reconcile against the app's package.json and drag the whole tree back in.
+ENV NODE_OPTIONS=--dns-result-order=ipv4first
 RUN mkdir -p /opt/sharp \
   && cd /opt/sharp \
-  && npm install --no-audit --no-fund --no-save --no-package-lock sharp \
+  && npm install --no-audit --no-fund --no-save --no-package-lock \
+       --fetch-retries=5 --fetch-retry-maxtimeout=180000 sharp \
   && chown -R nextjs:nodejs /opt/sharp /app/node_modules
 ENV NEXT_SHARP_PATH=/opt/sharp/node_modules/sharp
 
