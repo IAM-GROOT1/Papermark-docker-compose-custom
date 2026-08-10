@@ -3,43 +3,32 @@ import { tenant } from "@teamhanko/passkeys-next-auth-provider";
 /**
  * [self-host] Never throws at import.
  *
- * Two separate problems had to be solved here:
+ * Papermark's version threw at module scope when HANKO_API_KEY /
+ * NEXT_PUBLIC_HANKO_TENANT_ID were unset. `next build` imports every route to
+ * collect page data, so passkey sign-in — an optional provider — became a hard
+ * requirement for building the app at all.
  *
- *  1. The module used to `throw` at module scope when HANKO_API_KEY /
- *     NEXT_PUBLIC_HANKO_TENANT_ID were unset. `next build` imports every route
- *     to collect page data, so passkey sign-in — an optional provider — became
- *     a hard requirement for building the app at all.
+ * Getting this right took three attempts, so the constraints are worth writing
+ * down:
+ *   - defaulting the credentials to "" doesn't work: tenant() itself rejects
+ *     them with "No tenant ID provided";
+ *   - throwing lazily doesn't work either, nor does a proxy stub, because
+ *     lib/auth/auth-options.ts hands this to PasskeyProvider() at module scope
+ *     and the passkeys package both calls into and string-coerces the tenant
+ *     while setting itself up.
  *
- *  2. `tenant()` itself throws "No tenant ID provided" when handed empty
- *     credentials, so simply defaulting them to "" moves the same failure one
- *     line down.
- *
- * Throwing lazily is not an option either, because lib/auth/auth-options.ts
- * passes this object to PasskeyProvider() at module scope. So when Hanko is not
- * configured we hand back a stub that tolerates any property access and only
- * rejects if something actually calls it — which only the passkey flow does.
+ * So: always build a real tenant, using placeholder credentials when none are
+ * configured. Nothing throws at import, and an actual passkey request fails
+ * against the Hanko API — the only path that needs it.
  */
 export const isHankoConfigured = () =>
   !!process.env.HANKO_API_KEY && !!process.env.NEXT_PUBLIC_HANKO_TENANT_ID;
 
-const NOT_CONFIGURED =
-  "Passkey sign-in is not configured on this instance. Set HANKO_API_KEY and NEXT_PUBLIC_HANKO_TENANT_ID to enable it.";
+const PLACEHOLDER_TENANT_ID = "00000000-0000-0000-0000-000000000000";
 
-/**
- * Accepts `stub.anything.nested` and rejects only on invocation, so provider
- * setup can inspect the object freely.
- */
-const unconfiguredStub = (): any =>
-  new Proxy(function () {} as any, {
-    get: () => unconfiguredStub(),
-    apply: () => Promise.reject(new Error(NOT_CONFIGURED)),
-  });
-
-const hanko: ReturnType<typeof tenant> = isHankoConfigured()
-  ? tenant({
-      apiKey: process.env.HANKO_API_KEY!,
-      tenantId: process.env.NEXT_PUBLIC_HANKO_TENANT_ID!,
-    })
-  : unconfiguredStub();
+const hanko = tenant({
+  apiKey: process.env.HANKO_API_KEY || "passkeys-not-configured",
+  tenantId: process.env.NEXT_PUBLIC_HANKO_TENANT_ID || PLACEHOLDER_TENANT_ID,
+});
 
 export default hanko;
