@@ -2,10 +2,22 @@
  * [self-host] Reconstructed module.
  *
  * Papermark's public repo imports this path but ships it only in their private
- * enterprise repo, so upstream `main` does not compile. Samples an uploaded logo to decide whether surrounding chrome should go light or dark. Without the enterprise image analysis we report 'unknown', which callers treat as 'leave the chrome alone'.
+ * enterprise repo, so upstream `main` does not compile. Samples an uploaded logo to decide whether the surrounding chip should be light or dark. Without the enterprise image analysis we return the same shape with a fixed tone; callers destructure { tone, imgProps }.
  */
-export type LogoTone = "light" | "dark" | "unknown";
+import type { ImgHTMLAttributes } from "react";
 
+export type LogoToneValue = "light" | "dark";
+
+export type LogoTone = {
+  tone: LogoToneValue;
+  /** Spread onto the <img> that renders the logo. */
+  imgProps: ImgHTMLAttributes<HTMLImageElement>;
+};
+
+/**
+ * "dark" is the documented default at the call sites: it yields a white chip,
+ * which suits the majority of logos and avoids a black flash on first paint.
+ */
 export function useLogoTone(_src?: string | null): LogoTone {
-  return "unknown";
+  return { tone: "dark", imgProps: {} };
 }

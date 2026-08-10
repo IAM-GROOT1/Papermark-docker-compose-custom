@@ -62,7 +62,12 @@ export interface ConversationSummary {
   };
 }
 
-export default function DataroomConversationsPage() {
+export default function DataroomConversationsPage(_props: {
+  // [self-host] pages/datarooms/[id]/conversations/[conversationId] renders
+  // this with `initialConversationId`, but the component declared no props, so
+  // upstream does not typecheck. Accepted and currently unused.
+  initialConversationId?: string;
+} = {}) {
   const router = useRouter();
   const { limits, error: limitsError, loading: limitsLoading } = useLimits();
   const { dataroom } = useDataroom();

@@ -57,6 +57,11 @@ export type ConversationSidebarProps = {
   viewId: string;
   dataroomId?: string;
   documentId?: string;
+  // [self-host] components/view/nav.tsx and nav-dataroom.tsx pass these, but
+  // they were missing here, so upstream does not typecheck. The component does
+  // not read them; they are accepted and ignored.
+  documentName?: string;
+  dataroomName?: string;
   pageNumber?: number;
   viewerId?: string;
   isEnabled?: boolean;

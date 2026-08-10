@@ -2,11 +2,17 @@
  * [self-host] Reconstructed module.
  *
  * Papermark's public repo imports this path but ships it only in their private
- * enterprise repo, so upstream `main` does not compile. Dataroom trial lifecycle emails. Self-hosted has no trials or billing, so these tasks exist only to satisfy the imports.
+ * enterprise repo, so upstream `main` does not compile. Dataroom trial lifecycle emails. Self-hosted has no trials or billing, so these exist only to satisfy the imports and their payload types.
  */
 import { task } from "@trigger.dev/sdk";
 
-type TrialEmailPayload = { teamId?: string; email?: string; dataroomId?: string };
+export type TrialEmailPayload = {
+  to?: string;
+  teamId?: string;
+  email?: string;
+  dataroomId?: string;
+  [key: string]: unknown;
+};
 
 const skip = async (_payload: TrialEmailPayload) => ({
   skipped: "dataroom trials are disabled on self-hosted",
