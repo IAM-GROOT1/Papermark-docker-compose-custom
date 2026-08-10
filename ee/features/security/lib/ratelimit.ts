@@ -23,6 +23,27 @@ export const rateLimiters = {
     enableProtection: true,
     analytics: true,
   }),
+
+  // [self-host] lib/api/links/bulk-import.ts and the domain-verify route both
+  // reach for limiters that were never defined here. checkRateLimit() fails
+  // open on error, so upstream silently applies no limit at all on those two
+  // endpoints rather than crashing. Defined so the intent actually holds.
+
+  // Bulk link import, keyed by team.
+  bulkLinkImport: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(5, "10 m"),
+    prefix: "rl:bulk-link-import",
+    analytics: true,
+  }),
+
+  // Domain verification polling, keyed by user+team.
+  domainVerification: new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(30, "10 m"),
+    prefix: "rl:domain-verification",
+    analytics: true,
+  }),
 };
 
 /**

@@ -2,13 +2,17 @@
  * [self-host] Reconstructed module.
  *
  * Papermark's public repo imports this path but ships it only in their private
- * enterprise repo, so upstream `main` does not compile. Sample content used to populate the dataroom branding preview. An empty dataset renders an empty preview; the shape matches what the preview page reads off it.
+ * enterprise repo, so upstream `main` does not compile.
+ *
+ * Sample content for the dataroom branding preview. The preview page feeds
+ * these rows straight into the real <FolderCard> and <DocumentCard>, so the
+ * types are the Prisma ones rather than hand-written look-alikes — that way
+ * the shapes cannot drift from what those components expect. The dataset
+ * itself is empty, so the preview renders an empty room.
  */
-export type PreviewFolder = {
-  id: string;
-  name: string;
-  parentId: string | null;
-};
+import type { DataroomFolder, DocumentVersion } from "@prisma/client";
+
+export type PreviewFolder = DataroomFolder;
 
 export type PreviewDocument = {
   id: string;
@@ -19,7 +23,7 @@ export type PreviewDocument = {
   downloadOnly: boolean;
   canDownload: boolean;
   hierarchicalIndex: string | null;
-  versions: { id: string; hasPages: boolean; numPages: number | null }[];
+  versions: DocumentVersion[];
 };
 
 export type DataroomPreviewDataset = {
