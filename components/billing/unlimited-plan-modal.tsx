@@ -138,9 +138,13 @@ export function UnlimitedPlanModal({
               </h3>
             </div>
 
+            {/* [self-host] `amountUsd` is read here but defined on no plan in
+                ee/stripe/constants.ts, so this does not typecheck upstream.
+                Omitted rather than invented: the prop is optional and
+                resolvePlanPrice() already falls back to the EUR amount when no
+                USD price is configured. */}
             <PlanPrice
               amount={unlimitedPlan.price[period].amount}
-              amountUsd={unlimitedPlan.price[period].amountUsd}
               period={period}
               currency={currency}
             />
