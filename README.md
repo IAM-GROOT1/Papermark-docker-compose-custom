@@ -31,9 +31,10 @@ Yes — verified by running it, not just by building it. On a Debian/WSL2 box wi
 Docker 29, from a clean `git clone` of this repo:
 
 ```
+fresh clone + fresh volumes .. OK   (nothing reused, README steps only)
 image build .................. OK   (995 MB)
 131 migrations applied ....... OK
-7 containers healthy ......... OK
+7 containers healthy ......... OK   (6s from `up` to healthy)
 sign in by email code ........ OK   (code read from the app logs)
 team auto-created ............ OK
 presigned upload to MinIO .... OK   (HTTP 200, through the proxy)
@@ -41,7 +42,7 @@ PDF -> page images ........... OK   (2 pages rendered in ~6s by the worker)
 objects in storage ........... OK   (page-1.png 33KB, page-2.png 34KB)
 public view link ............. OK   (HTTP 200)
 restart, data survives ....... OK   (docker compose down && up)
-error scan after restart ..... clean
+error scan ................... clean   (no errors from app or worker)
 ```
 
 Getting there took fixing **12 separate upstream defects**, several of which
