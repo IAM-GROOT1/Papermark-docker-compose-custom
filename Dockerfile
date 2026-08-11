@@ -55,8 +55,10 @@ COPY . .
 ARG NEXT_PUBLIC_BASE_URL=http://localhost:9009
 ARG NEXT_PUBLIC_MARKETING_URL=http://localhost:9009
 ARG NEXT_PUBLIC_APP_BASE_HOST=localhost
-ARG NEXT_PUBLIC_WEBHOOK_BASE_URL=http://localhost:9009
-ARG NEXT_PUBLIC_WEBHOOK_BASE_HOST=localhost
+# Empty by default: pointing this at the app's own host makes the webhook
+# middleware swallow every request. See docker-compose.yml.
+ARG NEXT_PUBLIC_WEBHOOK_BASE_URL=
+ARG NEXT_PUBLIC_WEBHOOK_BASE_HOST=
 # Extra hostnames this deployment answers to (comma separated) — e.g. the LAN
 # IP as well as a public domain fronted by a reverse proxy.
 ARG NEXT_PUBLIC_EXTRA_APP_HOSTS=

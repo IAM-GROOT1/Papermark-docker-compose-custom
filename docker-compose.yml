@@ -20,8 +20,15 @@ x-app-env: &app-env
   NEXT_PUBLIC_BASE_URL: ${PAPERMARK_URL}
   NEXT_PUBLIC_MARKETING_URL: ${PAPERMARK_URL}
   NEXT_PUBLIC_APP_BASE_HOST: ${PAPERMARK_HOST:?set PAPERMARK_HOST in .env}
-  NEXT_PUBLIC_WEBHOOK_BASE_URL: ${PAPERMARK_URL}
-  NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${PAPERMARK_HOST}
+  # Incoming webhooks are meant to live on a SEPARATE hostname (the way
+  # Papermark runs webhooks.papermark.com). Setting this to the app's own host
+  # hands every request to the webhook middleware, which 404s anything outside
+  # /services/* — i.e. the entire app. It only shows up once the app is reached
+  # without a port, because the check compares the raw Host header, so
+  # "host:9009" misses and a proxied "host" on 443 matches.
+  # Leave empty unless you genuinely receive webhooks on a dedicated hostname.
+  NEXT_PUBLIC_WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-}
+  NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${WEBHOOK_BASE_HOST:-}
   NEXT_PUBLIC_EXTRA_APP_HOSTS: ${EXTRA_APP_HOSTS:-}
   # Same list, but read at runtime — so correcting a hostname needs only
   # `docker compose up -d`, not a rebuild.
@@ -130,8 +137,8 @@ services:
         NEXT_PUBLIC_BASE_URL: ${PAPERMARK_URL}
         NEXT_PUBLIC_MARKETING_URL: ${PAPERMARK_URL}
         NEXT_PUBLIC_APP_BASE_HOST: ${PAPERMARK_HOST}
-        NEXT_PUBLIC_WEBHOOK_BASE_URL: ${PAPERMARK_URL}
-        NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${PAPERMARK_HOST}
+        NEXT_PUBLIC_WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-}
+        NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${WEBHOOK_BASE_HOST:-}
         NEXT_PUBLIC_EXTRA_APP_HOSTS: ${EXTRA_APP_HOSTS:-}
     # [self-host] The app fetches its own presigned storage URLs, so it has to
     # resolve PAPERMARK_HOST the same way a browser does. `host-gateway` points
@@ -169,8 +176,8 @@ services:
         NEXT_PUBLIC_BASE_URL: ${PAPERMARK_URL}
         NEXT_PUBLIC_MARKETING_URL: ${PAPERMARK_URL}
         NEXT_PUBLIC_APP_BASE_HOST: ${PAPERMARK_HOST}
-        NEXT_PUBLIC_WEBHOOK_BASE_URL: ${PAPERMARK_URL}
-        NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${PAPERMARK_HOST}
+        NEXT_PUBLIC_WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-}
+        NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${WEBHOOK_BASE_HOST:-}
         NEXT_PUBLIC_EXTRA_APP_HOSTS: ${EXTRA_APP_HOSTS:-}
     image: papermark-selfhosted:latest
     restart: unless-stopped
