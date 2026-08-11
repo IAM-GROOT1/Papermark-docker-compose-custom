@@ -58,5 +58,16 @@ if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
   $PRISMA migrate deploy --schema ./prisma/schema
 fi
 
+# [self-host] Print what this instance answers to. A hostname that is not in
+# this list is treated as a customer's custom domain and 404s or bounces to
+# papermark.com, which is otherwise very hard to diagnose from the outside.
+echo "[entrypoint] public URL:      ${NEXT_PUBLIC_BASE_URL:-<unset>}"
+echo "[entrypoint] hostnames served: ${SELF_HOSTED_APP_HOSTS:-<unset>}"
+if [ -z "${SELF_HOSTED_APP_HOSTS:-}" ]; then
+  echo "[entrypoint] WARNING: SELF_HOSTED_APP_HOSTS is unset — this image predates"
+  echo "[entrypoint]          the runtime hostname lookup. Rebuild with:"
+  echo "[entrypoint]          docker compose build --no-cache app && docker compose up -d"
+fi
+
 echo "[entrypoint] starting Papermark on port ${PORT:-3000}"
 exec "$@"
