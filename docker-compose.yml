@@ -149,6 +149,12 @@ services:
       app:
         condition: service_started
     entrypoint: ["/bin/sh", "/app/worker.sh"]
+    # The image's healthcheck curls the Next.js server, but this container runs
+    # the polling loop instead — so it would report "unhealthy" forever. The
+    # loop has no endpoint of its own to probe; if it dies, the container exits
+    # and `restart: unless-stopped` brings it back.
+    healthcheck:
+      disable: true
     environment:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       WORKER_TARGET_URL: http://app:3000
