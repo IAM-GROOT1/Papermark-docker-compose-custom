@@ -34,6 +34,15 @@ const BATCH_SIZE = 3;
 // broken upload cannot block the queue forever.
 const MAX_AGE_HOURS = 24;
 
+// Pages rendered per request. A 520-page document takes minutes to convert, and
+// Node closes a request after `server.requestTimeout` (5 minutes by default),
+// which would kill the run mid-document. Rendering a bounded slice per poll and
+// resuming on the next one keeps every request short. Already-rendered pages
+// are skipped, so this is naturally resumable.
+const MAX_PAGES_PER_RUN = Number(
+  process.env.SELF_HOSTED_PAGES_PER_RUN || 40,
+);
+
 let running = false;
 
 type PendingVersion = {
@@ -105,8 +114,20 @@ async function convertVersion(version: PendingVersion) {
   });
   const done = new Set(existingPages.map((page) => page.pageNumber));
 
+  let renderedThisRun = 0;
+
   for (let pageNumber = 1; pageNumber <= numPages; pageNumber++) {
     if (done.has(pageNumber)) continue;
+
+    if (renderedThisRun >= MAX_PAGES_PER_RUN) {
+      // Out of budget for this request; the next poll picks up where we left
+      // off. Deliberately leaves hasPages false so the document is not shown
+      // half-rendered.
+      console.log(
+        `[self-host worker] ${documentVersionId}: ${done.size + renderedThisRun}/${numPages} pages, continuing next poll`,
+      );
+      return { numPages, complete: false };
+    }
 
     const response = await internalFetch("/api/mupdf/convert-page", {
       documentVersionId,
@@ -121,11 +142,15 @@ async function convertVersion(version: PendingVersion) {
       );
     }
 
-    console.log(
-      `[self-host worker] ${documentVersionId}: page ${pageNumber}/${numPages}`,
-    );
+    renderedThisRun++;
+    if (pageNumber % 25 === 0 || pageNumber === numPages) {
+      console.log(
+        `[self-host worker] ${documentVersionId}: page ${pageNumber}/${numPages}`,
+      );
+    }
   }
 
+  // Every page is present — safe to publish.
   await prisma.documentVersion.update({
     where: { id: documentVersionId },
     data: { numPages, hasPages: true, isPrimary: true },
@@ -148,7 +173,7 @@ async function convertVersion(version: PendingVersion) {
     console.error("[self-host worker] revalidate failed:", error);
   }
 
-  return numPages;
+  return { numPages, complete: true };
 }
 
 export default async function handler(
@@ -203,10 +228,12 @@ export default async function handler(
     for (const row of pending) {
       const version: PendingVersion = { ...row, teamId: row.document?.teamId };
       try {
-        const numPages = await convertVersion(version);
-        console.log(
-          `[self-host worker] converted ${version.id} (${numPages} pages)`,
-        );
+        const { numPages, complete } = await convertVersion(version);
+        if (complete) {
+          console.log(
+            `[self-host worker] converted ${version.id} (${numPages} pages)`,
+          );
+        }
         results.push({ id: version.id, ok: true });
       } catch (error) {
         const message =

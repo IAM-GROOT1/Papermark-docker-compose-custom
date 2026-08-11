@@ -61,6 +61,26 @@ x-app-env: &app-env
   SELF_HOSTED_WORKER: "true"
   SELF_HOSTED_LOG_LOGIN_CODES: ${LOG_LOGIN_CODES:-true}
 
+  # Papermark gates link settings (password, expiry, email verification,
+  # allow/deny lists, watermark, screenshot protection) on the Stripe plan.
+  # There is no Stripe here, so the team would sit on "free" forever with those
+  # behind an upgrade button that can never be clicked. Set to "free" to opt
+  # back into upstream's gating. See lib/self-host/plan.ts.
+  SELF_HOSTED_PLAN: ${SELF_HOSTED_PLAN:-datarooms-plus}
+
+  # Upload ceilings. Read at request time, so a restart is enough to change
+  # them — no image rebuild. "unlimited" is accepted.
+  SELF_HOSTED_MAX_DOCUMENT_MB: ${MAX_DOCUMENT_MB:-1024}
+  SELF_HOSTED_MAX_PAGES: ${MAX_PAGES:-10000}
+  SELF_HOSTED_MAX_VIDEO_MB: ${MAX_VIDEO_MB:-2048}
+  SELF_HOSTED_MAX_IMAGE_MB: ${MAX_IMAGE_MB:-256}
+  SELF_HOSTED_MAX_EXCEL_MB: ${MAX_EXCEL_MB:-256}
+  SELF_HOSTED_MAX_FILES: ${MAX_FILES:-500}
+
+  # Pages rendered per worker poll. Keeps each request well inside Node's
+  # 5-minute request timeout; a long document resumes across polls.
+  SELF_HOSTED_PAGES_PER_RUN: ${PAGES_PER_RUN:-40}
+
   # --- email (optional) --------------------------------------------------
   SMTP_HOST: ${SMTP_HOST:-}
   SMTP_PORT: ${SMTP_PORT:-587}

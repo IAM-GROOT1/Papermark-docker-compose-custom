@@ -6,6 +6,7 @@ import { waitUntil } from "@vercel/functions";
 import * as mupdf from "mupdf";
 
 import { putFileServer } from "@/lib/files/put-file-server";
+import { fetchPdfCached } from "@/lib/self-host/pdf-cache";
 import prisma from "@/lib/prisma";
 import { log } from "@/lib/utils";
 
@@ -41,10 +42,12 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     };
 
   try {
-    // Fetch the PDF data
-    let response: Response;
+    // Fetch the PDF data.
+    // [self-host] Cached across pages of the same document — otherwise a
+    // 520-page file re-downloads the whole PDF 520 times.
+    let pdfData: ArrayBuffer;
     try {
-      response = await fetch(url);
+      pdfData = await fetchPdfCached(url);
     } catch (error) {
       log({
         message: `Failed to fetch PDF in conversion process with error: \n\n Error: ${error} \n\n \`Metadata: {teamId: ${teamId}, documentVersionId: ${documentVersionId}, pageNumber: ${pageNumber}}\``,
@@ -54,8 +57,6 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
       throw new Error(`Failed to fetch pdf on document page ${pageNumber}`);
     }
 
-    // Convert the response to a buffer
-    const pdfData = await response.arrayBuffer();
     // Create a MuPDF instance
     var doc = new mupdf.PDFDocument(pdfData);
     console.log("Original document size:", pdfData.byteLength);

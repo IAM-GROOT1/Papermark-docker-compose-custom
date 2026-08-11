@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import prisma from "@/lib/prisma";
+import {
+  getSelfHostedPlanLimits,
+  isSelfHostedPlanOverrideEnabled,
+} from "@/lib/self-host/plan";
 
 import {
   BUSINESS_PLAN_LIMITS,
@@ -119,6 +123,18 @@ export async function getLimits({
   const documentCount = team._count.documents;
   const linkCount = team._count.links;
   const userCount = team._count.users + team._count.invitations;
+
+  // [self-host] No billing means no reason to cap anything. The plan-derived
+  // ceilings below would otherwise reject the files people self-host for: the
+  // free plan stops at 100 pages and 100MB, so a 520-page scan is refused
+  // before it is ever uploaded. Tunable via SELF_HOSTED_MAX_* — served from
+  // here, so a container restart is enough, no image rebuild.
+  if (isSelfHostedPlanOverrideEnabled()) {
+    return {
+      ...getSelfHostedPlanLimits(),
+      usage: { documents: documentCount, links: linkCount, users: userCount },
+    };
+  }
 
   // parse the limits json with zod and return the limits
   // {datarooms: 1, users: 1, domains: 1, customDomainOnPro: boolean, customDomainInDataroom: boolean}
