@@ -246,9 +246,6 @@ PAPERMARK_PORT=9009            # the port your proxy forwards to
 
 # Optional: keep the LAN address working too (comma separated).
 EXTRA_APP_HOSTS=192.168.1.80
-
-# Required when *your* proxy terminates TLS — see below.
-INTERNAL_HOST_ALIAS=papermark-internal
 ```
 
 Then **rebuild**, because `NEXT_PUBLIC_*` values are compiled into the browser
@@ -258,19 +255,15 @@ bundle:
 docker compose up -d --build
 ```
 
-### 2. Free the domain name inside the Docker network
+### 2. Nothing else to configure for name resolution
 
-By default this stack registers `PAPERMARK_HOST` as a network alias, so the app
-container can reach its own public URL to fetch presigned storage links. With
-your own TLS proxy that backfires: the alias captures `docs.example.com` inside
-the network, and the app tries to reach `https://docs.example.com` on *this*
-stack's plain HTTP port rather than going out to your proxy. Page rendering and
-downloads then fail.
+The app has to fetch its own presigned storage URLs, so it must resolve
+`PAPERMARK_HOST` the way a browser does. The compose file points that hostname
+at the Docker host, where both this stack's proxy and your reverse proxy listen
+— so it works without your router supporting NAT hairpinning.
 
-`INTERNAL_HOST_ALIAS=papermark-internal` releases the name so normal DNS applies.
-Your Docker host must then be able to reach its own public hostname — most
-routers handle this (NAT hairpinning); if yours does not, add a hosts entry on
-the Docker host pointing the domain at your proxy's LAN address.
+If your proxy runs on a *different* machine, set `REVERSE_PROXY_IP` to its
+address.
 
 ### 3. Let large uploads through the proxy
 

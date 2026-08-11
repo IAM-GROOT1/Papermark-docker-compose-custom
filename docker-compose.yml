@@ -115,21 +115,7 @@ services:
     ports:
       - "${PAPERMARK_PORT:-9009}:${PAPERMARK_PORT:-9009}"
     networks:
-      papermark:
-        # Answering to PAPERMARK_HOST inside the network is what lets the app
-        # container fetch its own presigned storage URLs. An alias does this
-        # without pinning a subnet, so the stack cannot collide with whatever
-        # else is already running on the host. Harmless when PAPERMARK_HOST is
-        # an IP — nothing resolves it, the address is used directly.
-        #
-        # Set INTERNAL_HOST_ALIAS to an unused name when a separate reverse
-        # proxy (Nginx Proxy Manager, Caddy, Traefik) terminates TLS on your
-        # domain. Otherwise this alias captures that domain inside the Docker
-        # network, and the app tries to reach https://your-domain on *this*
-        # stack's plain HTTP port instead of going out through your proxy —
-        # page rendering and downloads then fail.
-        aliases:
-          - "${INTERNAL_HOST_ALIAS:-${PAPERMARK_HOST}}"
+      - papermark
 
   app:
     build:
@@ -144,6 +130,16 @@ services:
         NEXT_PUBLIC_WEBHOOK_BASE_URL: ${PAPERMARK_URL}
         NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${PAPERMARK_HOST}
         NEXT_PUBLIC_EXTRA_APP_HOSTS: ${EXTRA_APP_HOSTS:-}
+    # [self-host] The app fetches its own presigned storage URLs, so it has to
+    # resolve PAPERMARK_HOST the same way a browser does. `host-gateway` points
+    # it at the Docker host, where this stack's proxy (PAPERMARK_PORT) and any
+    # external reverse proxy (443) both listen — so this works whether you serve
+    # the LAN address directly or a real domain through Nginx Proxy Manager,
+    # and it does not depend on your router supporting NAT hairpinning.
+    #
+    # Set REVERSE_PROXY_IP if your proxy runs on a *different* machine.
+    extra_hosts:
+      - "${PAPERMARK_HOST}:${REVERSE_PROXY_IP:-host-gateway}"
     image: papermark-selfhosted:latest
     restart: unless-stopped
     depends_on:
@@ -175,6 +171,8 @@ services:
         NEXT_PUBLIC_EXTRA_APP_HOSTS: ${EXTRA_APP_HOSTS:-}
     image: papermark-selfhosted:latest
     restart: unless-stopped
+    extra_hosts:
+      - "${PAPERMARK_HOST}:${REVERSE_PROXY_IP:-host-gateway}"
     depends_on:
       app:
         condition: service_started
