@@ -135,9 +135,13 @@ Pick whichever is easier:
   teaches the containers to resolve it; you just need it in your own
   `hosts` file or your router's DNS.
 
-> Changing `PAPERMARK_URL` later needs a rebuild — `NEXT_PUBLIC_*` values are
-> baked into the browser bundle at build time.
-> `docker compose up -d --build`
+> **Changing the hostname** (`PAPERMARK_HOST` / `EXTRA_APP_HOSTS`) takes effect
+> with a plain `docker compose up -d` — the app reads its own hostnames at
+> runtime.
+>
+> **Changing `PAPERMARK_URL` still needs a rebuild**, because the browser bundle
+> has it compiled in: `docker compose up -d --build`. Symptoms of forgetting:
+> links and page images still point at the old address.
 
 ---
 
@@ -359,7 +363,22 @@ and does the conversion in-process; if the app can't fetch its own storage URLs
 (see above), conversion fails there.
 
 **Login code never arrives.**
-`docker compose logs app | grep "Login code"`.
+`docker compose logs app | grep "Login code"`. Note that sign-in only works from
+the origin in `PAPERMARK_URL` — NextAuth rejects others, so if that is your
+domain, log in on the domain rather than the LAN address.
+
+**A 404, or a redirect to papermark.com, on your own domain.**
+The app does not recognise that hostname, so it treats it as a customer's
+custom domain. Add it to `PAPERMARK_HOST` or `EXTRA_APP_HOSTS` and
+`docker compose up -d`. To tell whether the app or your reverse proxy is at
+fault, hit the app directly with your domain's Host header:
+
+```bash
+curl -sI -H "Host: docs.example.com" http://127.0.0.1:9009/dashboard
+```
+
+`307 -> /login` means the app is fine and the problem is in your proxy.
+A `404` means the hostname still is not configured.
 
 **"Application error: a client-side exception has occurred" when picking a file.**
 Fixed — pull and rebuild. The cause is worth knowing because it affects a lot of
