@@ -45,6 +45,7 @@ import {
   getFileSizeLimits,
 } from "@/lib/utils/get-file-size-limits";
 import { getPagesCount } from "@/lib/utils/get-page-number-count";
+import { randomUUID } from "@/lib/utils/random-uuid";
 
 // These mime values are kept out of useDropzone's `accept` to keep the file
 // type fallback path in getFilesFromEvent reachable (some browsers, notably
@@ -759,7 +760,7 @@ export default function UploadZone({
         }
       }
 
-      const batchId = crypto.randomUUID();
+      const batchId = randomUUID();
       let totalEntriesAcrossAll = 0;
 
       const items: UploadItemState[] = Array.from(itemGroups.values()).map(
@@ -778,7 +779,7 @@ export default function UploadZone({
           const groupBytesTotal = group.files.reduce((sum, f) => sum + f.size, 0);
 
           return {
-            itemId: crypto.randomUUID(),
+            itemId: randomUUID(),
             name: group.name,
             type: group.isFolder ? ("folder" as const) : ("file" as const),
             totalEntries: total,
@@ -1340,7 +1341,7 @@ export default function UploadZone({
               ]);
               return;
             }
-            const tempId = crypto.randomUUID();
+            const tempId = randomUUID();
             folders.push({
               tempId,
               name: entry.name,
@@ -1662,7 +1663,7 @@ export default function UploadZone({
           const parentTempId = parentPath
             ? (folderTempIdByPath.get(parentPath) ?? null)
             : null;
-          const tempId = crypto.randomUUID();
+          const tempId = randomUUID();
           folderTempIdByPath.set(folderPath, tempId);
           if (i === 0) topLevelTempIdByName.set(segment, tempId);
           allFolders.push({ tempId, name: segment, parentTempId });

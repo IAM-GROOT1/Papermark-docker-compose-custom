@@ -15,6 +15,7 @@ import type {
   UploadBatchState,
   UploadItemState,
 } from "@/components/upload-zone";
+import { randomUUID } from "@/lib/utils/random-uuid";
 
 /**
  * Imperative triggers exposed by a mounted `UploadZone` so that callers
@@ -276,7 +277,7 @@ export function useUploadCallbacks() {
         const baseBatch = isDone ? null : prev;
         if (!preliminaryItems?.length) return baseBatch;
         const newItems = preliminaryItems.map((pi) => ({
-          itemId: crypto.randomUUID(),
+          itemId: randomUUID(),
           name: pi.name,
           type: (pi.isFolder ? "folder" : "file") as "folder" | "file",
           totalEntries: 0,
@@ -285,7 +286,7 @@ export function useUploadCallbacks() {
         }));
         if (!baseBatch) {
           return {
-            batchId: crypto.randomUUID(),
+            batchId: randomUUID(),
             items: newItems,
             startedAt: Date.now(),
             totalEntries: 0,

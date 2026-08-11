@@ -236,6 +236,18 @@ and does the conversion in-process; if the app can't fetch its own storage URLs
 **Login code never arrives.**
 `docker compose logs app | grep "Login code"`.
 
+**"Application error: a client-side exception has occurred" when picking a file.**
+Fixed — pull and rebuild. The cause is worth knowing because it affects a lot of
+self-hosted software: `crypto.randomUUID()` only exists in a *secure context*
+(HTTPS, or localhost). Served at `http://192.168.1.80:9009` the browser does not
+provide it, and Papermark mints the document id client-side, so selecting a file
+threw and took the page down. This fork derives the UUID from
+`crypto.getRandomValues()` instead, which has no such restriction.
+
+If you see other `crypto.*` or `SubtleCrypto` failures, that is the same root
+cause: plain HTTP is not a secure context. Putting the instance behind HTTPS
+avoids the whole class.
+
 **The build runs out of memory / dies with no error.**
 Already handled: the build is capped to one worker with a 4 GB heap. If your
 server is bigger and you want it faster, raise them:

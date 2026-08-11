@@ -8,6 +8,7 @@ import { PresetDataSchema } from "@/lib/zod/schemas/presets";
 import { Facebook } from "../shared/icons/facebook";
 import LinkedIn from "../shared/icons/linkedin";
 import Twitter from "../shared/icons/twitter";
+import { randomUUID } from "@/lib/utils/random-uuid";
 
 export default function Preview({
   data,
@@ -154,7 +155,7 @@ export default function Preview({
                 {title || title === "" ? (
                   <input
                     maxLength={120}
-                    name={window.crypto.randomUUID()}
+                    name={randomUUID()}
                     className="w-full truncate border-none bg-transparent p-0 font-semibold text-[#000000E6] outline-none focus:rounded-md focus:px-1 focus:ring-1 focus:ring-inset focus:ring-gray-500"
                     value={title}
                     onChange={(e) => {

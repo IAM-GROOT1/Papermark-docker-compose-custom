@@ -1,9 +1,25 @@
 import baseX from "base-x";
+import { randomUUID } from "@/lib/utils/random-uuid";
 
-function encodeBase58(buf: Buffer): string {
+function encodeBase58(bytes: Uint8Array): string {
   const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
-  return baseX(alphabet).encode(buf);
+  return baseX(alphabet).encode(bytes);
+}
+
+/**
+ * [self-host] Hex -> bytes without Buffer.
+ *
+ * This runs in the browser too (putFile() mints the document id client-side),
+ * and Buffer is a Node global that is not guaranteed to be polyfilled there.
+ * base-x accepts a plain Uint8Array, so there is no need for it.
+ */
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  }
+  return bytes;
 }
 /**
  * Generate ids similar to stripe
@@ -27,7 +43,7 @@ export class IdGenerator<TPrefixes extends string> {
   public id = (prefix: TPrefixes): string => {
     return [
       this.prefixes[prefix],
-      encodeBase58(Buffer.from(crypto.randomUUID().replace(/-/g, ""), "hex")),
+      encodeBase58(hexToBytes(randomUUID().replace(/-/g, ""))),
     ].join("_");
   };
 }
