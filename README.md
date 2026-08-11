@@ -367,6 +367,19 @@ and does the conversion in-process; if the app can't fetch its own storage URLs
 the origin in `PAPERMARK_URL` — NextAuth rejects others, so if that is your
 domain, log in on the domain rather than the LAN address.
 
+**Every page 404s behind a reverse proxy, but the LAN address works.**
+Check `WEBHOOK_BASE_HOST` is empty. If it equals the hostname you are browsing,
+Papermark hands every request to its incoming-webhook handler, which 404s
+anything outside `/services/*`. It hides on a LAN because the check compares the
+raw `Host` header including the port — `host:9009` misses, a proxied `host` on
+443 matches exactly. Confirm with:
+
+```bash
+curl -sI -H "Host: docs.example.com" http://127.0.0.1:9009/dashboard | grep -i middleware
+```
+
+`x-middleware-rewrite: /404` means a middleware swallowed it.
+
 **A 404, or a redirect to papermark.com, on your own domain.**
 The app does not recognise that hostname, so it treats it as a customer's
 custom domain. Add it to `PAPERMARK_HOST` or `EXTRA_APP_HOSTS` and
