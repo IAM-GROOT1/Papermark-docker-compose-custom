@@ -36,23 +36,28 @@ image build .................. OK   (995 MB)
 131 migrations applied ....... OK
 7 containers healthy ......... OK   (6s from `up` to healthy)
 sign in by email code ........ OK   (code read from the app logs)
-team auto-created ............ OK
 presigned upload to MinIO .... OK   (HTTP 200, through the proxy)
-PDF -> page images ........... OK   (2 pages rendered in ~6s by the worker)
-objects in storage ........... OK   (page-1.png 33KB, page-2.png 34KB)
-public view link ............. OK   (HTTP 200)
 restart, data survives ....... OK   (docker compose down && up)
 error scan ................... clean   (no errors from app or worker)
+
+real 81MB / 517-page PDF:
+  upload ..................... OK   (HTTP 200)
+  rendered to page images .... OK   (517 pages in ~6 min, resumable)
+  viewer receives pages ...... OK   (517 images, source PDF not exposed)
+password-protected link:
+  no password ................ HTTP 400  "Password is required."
+  wrong password ............. HTTP 403  "Invalid password."
+  correct password ........... HTTP 200  + page data
+  allowDownload bypass ....... closed (see below)
 ```
 
-Getting there took fixing **12 separate upstream defects**, several of which
-make the public repo unbuildable and one of which broke sign-in entirely. See
-the next section.
+Getting there took fixing **18 separate upstream defects**, several of which
+make the public repo unbuildable, one of which broke sign-in entirely, and one
+of which handed out the original file on a link with downloads disabled.
 
-**What that does not prove:** it was tested on one machine, with one small PDF,
-by one user, over HTTP on a LAN. Data rooms, large files, many concurrent
-viewers, custom domains and HTTPS are all untested. Treat it as "the core path
-demonstrably works", not "production-ready".
+**What that does not prove:** one machine, one user, one document. Data rooms,
+many concurrent viewers, and long-term stability are untested. Treat it as "the
+core path demonstrably works", not "production-ready".
 
 ## What you get
 
@@ -156,7 +161,9 @@ equivalent; some of it doesn't.
 - **Office → PDF conversion** (`.docx`, `.pptx`, Keynote) — needs Trigger.dev
   with a LibreOffice image. Upload PDFs.
 - **Video transcoding** — needs Trigger.dev + ffmpeg.
-- **Custom domains** — needs Vercel's domain API.
+- **Multi-tenant custom domains** (a domain per link, managed in-app) — needs
+  Vercel's domain API. Serving the *whole instance* on your own domain behind a
+  reverse proxy does work — see "Behind a reverse proxy" below.
 - **Billing / plans** — needs Stripe. Everything is unrestricted here anyway.
 - **AI document chat, passkeys, SAML SSO** — each needs its own provider key.
 
