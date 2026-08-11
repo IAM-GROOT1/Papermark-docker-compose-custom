@@ -61,6 +61,21 @@ fi
 # [self-host] Print what this instance answers to. A hostname that is not in
 # this list is treated as a customer's custom domain and 404s or bounces to
 # papermark.com, which is otherwise very hard to diagnose from the outside.
+# [self-host] Bring existing teams onto the configured plan.
+#
+# Roughly 25 server-side checks read Team.plan straight from the database and
+# switch features off when it says "free" — including the clickable-link
+# overlay in the PDF viewer, which is why hyperlinks in an uploaded PDF render
+# but do nothing. Reporting a plan from the API is not enough; the column has
+# to agree.
+#
+# Only rows still on the default are touched, so a deliberately set plan is
+# left alone. Set SELF_HOSTED_PLAN=free to skip this entirely.
+if [ -n "${SELF_HOSTED_PLAN:-}" ] && [ "${SELF_HOSTED_PLAN}" != "free" ]; then
+  echo "[entrypoint] putting teams on plan '${SELF_HOSTED_PLAN}'..."
+  printf "UPDATE \"Team\" SET plan = '%s' WHERE plan = 'free';" "${SELF_HOSTED_PLAN}"     | $PRISMA db execute --stdin --schema ./prisma/schema 2>/dev/null     || echo "[entrypoint] (skipped: could not update team plans)"
+fi
+
 echo "[entrypoint] public URL:      ${NEXT_PUBLIC_BASE_URL:-<unset>}"
 echo "[entrypoint] hostnames served: ${SELF_HOSTED_APP_HOSTS:-<unset>}"
 if [ -z "${SELF_HOSTED_APP_HOSTS:-}" ]; then

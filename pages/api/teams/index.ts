@@ -13,6 +13,10 @@ import { getServerSession } from "next-auth";
 
 import { errorhandler } from "@/lib/errorHandler";
 import prisma from "@/lib/prisma";
+import {
+  getSelfHostedPlan,
+  isSelfHostedPlanOverrideEnabled,
+} from "@/lib/self-host/plan";
 import { CustomUser } from "@/lib/types";
 import { log } from "@/lib/utils";
 
@@ -65,6 +69,12 @@ export default async function handle(
         const defaultTeam = await prisma.team.create({
           data: {
             name: defaultTeamName,
+            // [self-host] Without billing, "free" is not a meaningful default:
+            // ~25 server-side checks read this column and switch features off,
+            // including the in-document link overlay. See lib/self-host/plan.ts.
+            ...(isSelfHostedPlanOverrideEnabled()
+              ? { plan: getSelfHostedPlan() }
+              : {}),
             users: {
               create: {
                 userId: user.id,
