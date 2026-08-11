@@ -3,6 +3,25 @@ set -e
 
 PRISMA="node /app/node_modules/prisma/build/index.js"
 
+# [self-host] Fail loudly on the configuration mistakes that otherwise surface
+# as a bare 502 from the proxy, with nothing useful in any log.
+fail() { echo; echo "[entrypoint] CONFIG ERROR: $1"; echo; exit 1; }
+
+case "${NEXT_PUBLIC_BASE_URL:-}" in
+  http://*|https://*) ;;
+  "") fail "PAPERMARK_URL is empty. Set it in .env, e.g. http://192.168.1.80:9009" ;;
+  *) fail "PAPERMARK_URL must start with http:// or https:// — got '${NEXT_PUBLIC_BASE_URL}'.
+             Example: PAPERMARK_URL=http://${NEXT_PUBLIC_APP_BASE_HOST:-192.168.1.80}:9009" ;;
+esac
+
+# The host in the URL has to match PAPERMARK_HOST, or the app answers on a name
+# it does not recognise and redirects to papermark.com.
+url_host=$(printf '%s' "$NEXT_PUBLIC_BASE_URL" | sed -e 's|^https\?://||' -e 's|[:/].*$||')
+if [ -n "${NEXT_PUBLIC_APP_BASE_HOST:-}" ] && [ "$url_host" != "$NEXT_PUBLIC_APP_BASE_HOST" ]; then
+  fail "PAPERMARK_HOST ('${NEXT_PUBLIC_APP_BASE_HOST}') does not match the host in
+             PAPERMARK_URL ('${url_host}'). They must be the same name."
+fi
+
 # compose already gates startup on the postgres healthcheck, but this keeps the
 # container sane when it is pointed at an external database that boots slowly.
 if [ -n "$POSTGRES_PRISMA_URL" ]; then
