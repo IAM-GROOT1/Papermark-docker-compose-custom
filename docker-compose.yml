@@ -23,6 +23,9 @@ x-app-env: &app-env
   NEXT_PUBLIC_WEBHOOK_BASE_URL: ${PAPERMARK_URL}
   NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${PAPERMARK_HOST}
   NEXT_PUBLIC_EXTRA_APP_HOSTS: ${EXTRA_APP_HOSTS:-}
+  # Same list, but read at runtime — so correcting a hostname needs only
+  # `docker compose up -d`, not a rebuild.
+  SELF_HOSTED_APP_HOSTS: "${PAPERMARK_HOST},${EXTRA_APP_HOSTS:-}"
 
   # --- database ----------------------------------------------------------
   # No pgbouncer in this stack, so the pooled and direct URLs are the same.

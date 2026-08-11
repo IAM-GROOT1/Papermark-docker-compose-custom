@@ -30,9 +30,15 @@ function isCustomDomain(host: string) {
   // is a comma-separated list, which matters when the instance is reachable
   // both directly (192.168.1.80) and through a reverse proxy on a real domain.
   const hostname = host?.split(":")[0]?.toLowerCase().trim();
+  //
+  // SELF_HOSTED_APP_HOSTS is read at runtime, so changing the hostname only
+  // needs `docker compose up -d`. The NEXT_PUBLIC_* values are compiled into
+  // the bundle at build time and would otherwise require a full rebuild — a
+  // trap when the only visible symptom is a redirect to papermark.com.
   const ownHosts = [
     process.env.NEXT_PUBLIC_APP_BASE_HOST,
     ...(process.env.NEXT_PUBLIC_EXTRA_APP_HOSTS?.split(",") ?? []),
+    ...(process.env.SELF_HOSTED_APP_HOSTS?.split(",") ?? []),
   ]
     .map((value) => value?.toLowerCase().trim())
     .filter((value): value is string => !!value);
