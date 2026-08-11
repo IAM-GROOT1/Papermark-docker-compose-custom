@@ -104,7 +104,10 @@ export async function recordLinkView({
 
   const [, ,] = await Promise.all([
     // record link view in Tinybird
-    recordLinkViewTB(clickData),
+    // [self-host] Skipped without a token. Tinybird has no self-hosted
+    // equivalent here, and attempting the ingest logged an "Unauthorized"
+    // error on every single view of every document.
+    process.env.TINYBIRD_TOKEN ? recordLinkViewTB(clickData) : null,
 
     // send email notification
     enableNotification ? sendNotification({ viewId, locationData }) : null,

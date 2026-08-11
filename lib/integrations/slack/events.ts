@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 
 import { SlackClient, getSlackClient } from "./client";
-import { getSlackEnv } from "./env";
+import { getSlackEnv, isSlackConfigured } from "./env";
 import { createSlackMessage } from "./templates";
 import { SlackEventData, SlackIntegrationServer } from "./types";
 
@@ -49,6 +49,13 @@ export class SlackEventManager {
   }
 
   async processEvent(eventData: SlackEventData): Promise<void> {
+    // [self-host] Nothing to notify when no Slack app is set up. getSlackEnv()
+    // throws in that case, and the catch below turned it into an error log on
+    // every document view.
+    if (!isSlackConfigured()) {
+      return;
+    }
+
     try {
       const env = getSlackEnv();
 
