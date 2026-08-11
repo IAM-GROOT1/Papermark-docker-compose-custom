@@ -222,6 +222,74 @@ knowing if you tune it:
 Expect roughly 0.3–0.7s per page on modest hardware; 520 pages lands around
 4–6 minutes. Raise `PAGES_PER_RUN` on a faster box.
 
+## Behind a reverse proxy, on a real domain (HTTPS)
+
+Pointing Nginx Proxy Manager / Caddy / Traefik at this stack works, but there
+are four things to get right. Miss the first and **you get redirected to
+papermark.com**, which looks baffling: the app decides any hostname it does not
+recognise must be some *customer's* custom domain, and `DomainMiddleware`
+redirects unknown custom domains to Papermark's marketing site.
+
+### 1. Tell the app its own hostname
+
+```env
+PAPERMARK_HOST=docs.example.com
+PAPERMARK_URL=https://docs.example.com
+PAPERMARK_PORT=9009            # the port your proxy forwards to
+
+# Optional: keep the LAN address working too (comma separated).
+EXTRA_APP_HOSTS=192.168.1.80
+
+# Required when *your* proxy terminates TLS — see below.
+INTERNAL_HOST_ALIAS=papermark-internal
+```
+
+Then **rebuild**, because `NEXT_PUBLIC_*` values are compiled into the browser
+bundle:
+
+```bash
+docker compose up -d --build
+```
+
+### 2. Free the domain name inside the Docker network
+
+By default this stack registers `PAPERMARK_HOST` as a network alias, so the app
+container can reach its own public URL to fetch presigned storage links. With
+your own TLS proxy that backfires: the alias captures `docs.example.com` inside
+the network, and the app tries to reach `https://docs.example.com` on *this*
+stack's plain HTTP port rather than going out to your proxy. Page rendering and
+downloads then fail.
+
+`INTERNAL_HOST_ALIAS=papermark-internal` releases the name so normal DNS applies.
+Your Docker host must then be able to reach its own public hostname — most
+routers handle this (NAT hairpinning); if yours does not, add a hosts entry on
+the Docker host pointing the domain at your proxy's LAN address.
+
+### 3. Let large uploads through the proxy
+
+Proxies cap request bodies, usually at 1MB, which silently breaks uploads. In
+**Nginx Proxy Manager → your host → Advanced**, add:
+
+```nginx
+client_max_body_size 0;
+proxy_request_buffering off;
+proxy_read_timeout 3600s;
+proxy_send_timeout 3600s;
+```
+
+Enable **Websockets Support** while you are there.
+
+### 4. Forward the Host header unchanged
+
+Presigned storage URLs are signed against the hostname, so a proxy that rewrites
+`Host` breaks every download with `SignatureDoesNotMatch`. NPM and Caddy do the
+right thing by default; if you hand-roll nginx, use `proxy_set_header Host
+$http_host`.
+
+**Check it worked:** `https://docs.example.com/api/health` should return
+`{"status":"ok"}`. If you land on papermark.com instead, `PAPERMARK_HOST` does
+not match the hostname you typed, or you have not rebuilt since changing it.
+
 ## Configuration
 
 Everything lives in `.env`. See `.env.example` for the annotated list.

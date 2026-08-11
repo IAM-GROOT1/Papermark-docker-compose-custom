@@ -57,6 +57,9 @@ ARG NEXT_PUBLIC_MARKETING_URL=http://localhost:9009
 ARG NEXT_PUBLIC_APP_BASE_HOST=localhost
 ARG NEXT_PUBLIC_WEBHOOK_BASE_URL=http://localhost:9009
 ARG NEXT_PUBLIC_WEBHOOK_BASE_HOST=localhost
+# Extra hostnames this deployment answers to (comma separated) — e.g. the LAN
+# IP as well as a public domain fronted by a reverse proxy.
+ARG NEXT_PUBLIC_EXTRA_APP_HOSTS=
 
 # Cap the heap so a runaway build fails fast with a clear V8 error instead of
 # tripping the kernel OOM killer, which on a small box takes the Docker daemon
@@ -69,6 +72,7 @@ ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL} \
     NEXT_PUBLIC_APP_BASE_HOST=${NEXT_PUBLIC_APP_BASE_HOST} \
     NEXT_PUBLIC_WEBHOOK_BASE_URL=${NEXT_PUBLIC_WEBHOOK_BASE_URL} \
     NEXT_PUBLIC_WEBHOOK_BASE_HOST=${NEXT_PUBLIC_WEBHOOK_BASE_HOST} \
+    NEXT_PUBLIC_EXTRA_APP_HOSTS=${NEXT_PUBLIC_EXTRA_APP_HOSTS} \
     NEXT_PUBLIC_UPLOAD_TRANSPORT=s3 \
     NEXT_OUTPUT_STANDALONE=true \
     NEXT_TELEMETRY_DISABLED=1 \

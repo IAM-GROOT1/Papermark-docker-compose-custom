@@ -22,11 +22,22 @@ function isAnalyticsPath(path: string) {
 function isCustomDomain(host: string) {
   // [self-host] Outside of papermark.com the check below classifies *every*
   // host as a customer custom domain, which routes the whole app through
-  // DomainMiddleware and breaks a self-hosted deployment served from, say,
-  // `papermark.local:9009`. Treat the deployment's own host as the app host.
-  const appHost = process.env.NEXT_PUBLIC_APP_BASE_HOST?.toLowerCase().trim();
+  // DomainMiddleware — whose root handler redirects to papermark.com. That is
+  // what a self-hosted instance reached by any other name gets: bounced to
+  // Papermark's marketing site.
+  //
+  // Recognise every hostname this deployment answers to. NEXT_PUBLIC_EXTRA_APP_HOSTS
+  // is a comma-separated list, which matters when the instance is reachable
+  // both directly (192.168.1.80) and through a reverse proxy on a real domain.
   const hostname = host?.split(":")[0]?.toLowerCase().trim();
-  if (appHost && hostname === appHost) {
+  const ownHosts = [
+    process.env.NEXT_PUBLIC_APP_BASE_HOST,
+    ...(process.env.NEXT_PUBLIC_EXTRA_APP_HOSTS?.split(",") ?? []),
+  ]
+    .map((value) => value?.toLowerCase().trim())
+    .filter((value): value is string => !!value);
+
+  if (hostname && ownHosts.includes(hostname)) {
     return false;
   }
 

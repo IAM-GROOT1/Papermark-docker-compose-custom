@@ -22,6 +22,7 @@ x-app-env: &app-env
   NEXT_PUBLIC_APP_BASE_HOST: ${PAPERMARK_HOST:?set PAPERMARK_HOST in .env}
   NEXT_PUBLIC_WEBHOOK_BASE_URL: ${PAPERMARK_URL}
   NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${PAPERMARK_HOST}
+  NEXT_PUBLIC_EXTRA_APP_HOSTS: ${EXTRA_APP_HOSTS:-}
 
   # --- database ----------------------------------------------------------
   # No pgbouncer in this stack, so the pooled and direct URLs are the same.
@@ -120,8 +121,15 @@ services:
         # without pinning a subnet, so the stack cannot collide with whatever
         # else is already running on the host. Harmless when PAPERMARK_HOST is
         # an IP — nothing resolves it, the address is used directly.
+        #
+        # Set INTERNAL_HOST_ALIAS to an unused name when a separate reverse
+        # proxy (Nginx Proxy Manager, Caddy, Traefik) terminates TLS on your
+        # domain. Otherwise this alias captures that domain inside the Docker
+        # network, and the app tries to reach https://your-domain on *this*
+        # stack's plain HTTP port instead of going out through your proxy —
+        # page rendering and downloads then fail.
         aliases:
-          - "${PAPERMARK_HOST}"
+          - "${INTERNAL_HOST_ALIAS:-${PAPERMARK_HOST}}"
 
   app:
     build:
@@ -135,6 +143,7 @@ services:
         NEXT_PUBLIC_APP_BASE_HOST: ${PAPERMARK_HOST}
         NEXT_PUBLIC_WEBHOOK_BASE_URL: ${PAPERMARK_URL}
         NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${PAPERMARK_HOST}
+        NEXT_PUBLIC_EXTRA_APP_HOSTS: ${EXTRA_APP_HOSTS:-}
     image: papermark-selfhosted:latest
     restart: unless-stopped
     depends_on:
@@ -163,6 +172,7 @@ services:
         NEXT_PUBLIC_APP_BASE_HOST: ${PAPERMARK_HOST}
         NEXT_PUBLIC_WEBHOOK_BASE_URL: ${PAPERMARK_URL}
         NEXT_PUBLIC_WEBHOOK_BASE_HOST: ${PAPERMARK_HOST}
+        NEXT_PUBLIC_EXTRA_APP_HOSTS: ${EXTRA_APP_HOSTS:-}
     image: papermark-selfhosted:latest
     restart: unless-stopped
     depends_on:
