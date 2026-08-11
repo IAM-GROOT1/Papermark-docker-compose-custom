@@ -171,8 +171,12 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
       return { href: link.getURI(), coords, isInternal: false };
     });
 
-    // Check embedded links for blocked keywords (skip for trusted teams)
-    if (embeddedLinks.length > 0 && !trustedTeam) {
+    // Check embedded links for blocked keywords (skip for trusted teams).
+    // [self-host] The keyword list lives in Vercel Edge Config, which does not
+    // exist here — without the guard this threw once per page with links, so a
+    // 517-page document logged hundreds of "No connection string provided"
+    // errors during an otherwise healthy conversion.
+    if (embeddedLinks.length > 0 && !trustedTeam && !!process.env.EDGE_CONFIG) {
       try {
         const keywords = await get("keywords");
         if (Array.isArray(keywords) && keywords.length > 0) {

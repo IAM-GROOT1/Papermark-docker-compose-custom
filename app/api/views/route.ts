@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
 
     const requestedVersion = await prisma.documentVersion.findUnique({
       where: { id: documentVersionId },
-      select: { documentId: true },
+      select: { documentId: true, hasPages: true },
     });
 
     if (!requestedVersion) {
@@ -231,6 +231,7 @@ export async function POST(request: NextRequest) {
     }
 
     const documentId = link.documentId;
+    const resolvedHasPages = requestedVersion.hasPages;
 
     let isEmailVerified: boolean = false;
     let hashedVerificationToken: string | null = null;
@@ -785,7 +786,14 @@ export async function POST(request: NextRequest) {
       let htmlContent: string | undefined;
       const INITIAL_PAGES_TO_LOAD = 10;
       // let documentPagesPromise, documentVersionPromise;
-      if (hasPages) {
+      // [self-host] Resolved from the database rather than the request body.
+      // `hasPages` arrives from the client, and the branch below decides
+      // between serving rendered page images and handing back a signed URL to
+      // the original file. A request that simply claimed `hasPages: false`
+      // therefore received the source PDF even on a link with allowDownload
+      // off — verified against this build before the change. The viewer sends
+      // the same value the database holds, so nothing legitimate changes.
+      if (resolvedHasPages) {
         const featureFlags = await getFeatureFlags({
           teamId: link.teamId!,
         });
