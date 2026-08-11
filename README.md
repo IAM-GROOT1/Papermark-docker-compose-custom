@@ -165,6 +165,63 @@ add them to `docker-compose.yml` and point them at the real service.
 
 ---
 
+## Sharing a document behind a password
+
+The main thing this is for. After signing in:
+
+1. **All Documents → Add document**, pick your PDF.
+2. Wait for the pages to render. Big documents take a while — a 520-page file is
+   a few minutes. Progress is in `docker compose logs -f app`.
+3. Open the document → **Share** / the link row → **Link settings**.
+4. Turn on **Password** and set one. While you are there, the settings worth
+   knowing:
+
+| Setting | What it does |
+|---|---|
+| **Password** | Viewer must type it before seeing anything |
+| **Email required** | Viewer must enter an email; it is recorded against the view |
+| **Email verification** | Sends a code to that address — needs SMTP configured |
+| **Allow/deny list** | Restrict to specific addresses or whole domains |
+| **Expiry date** | Link stops working after a date |
+| **Allow download** | Off = view online only, no download button |
+| **Screenshot protection** | Discourages casual capture. Not a real barrier |
+| **Watermark** | Stamps viewer email/time across each page |
+| **Notifications** | Emails you when someone opens it — needs SMTP |
+
+5. Copy the link and send it.
+
+**Every one of these is gated on the Stripe plan upstream**, and a self-hosted
+instance has no Stripe, so they were all locked. This fork reports a full plan
+instead — see `SELF_HOSTED_PLAN` below.
+
+**On screenshot protection and watermarks:** they raise effort, not a wall.
+Anyone who can see a document can photograph the screen. Treat them as a
+deterrent and an audit trail, not as security.
+
+## Large documents
+
+Defaults here are far above upstream's free plan (100 pages / 100MB), and are
+read per request — change them in `.env` and `docker compose up -d`, no rebuild:
+
+```env
+MAX_PAGES=10000          # upstream free plan: 100
+MAX_DOCUMENT_MB=1024     # upstream free plan: 100
+PAGES_PER_RUN=40         # pages rendered per worker poll
+```
+
+A 520-page, 100MB PDF works. Two things had to change for that, both worth
+knowing if you tune it:
+
+- Rendering re-downloaded the whole PDF for *every* page upstream — 52GB of
+  transfer for that document. It is now cached across the pages of a run.
+- One conversion request would outlive Node's 5-minute request timeout, so
+  pages are rendered in batches of `PAGES_PER_RUN` and resumed on the next
+  poll. `hasPages` only flips when every page exists, so the document is never
+  shown half-rendered.
+
+Expect roughly 0.3–0.7s per page on modest hardware; 520 pages lands around
+4–6 minutes. Raise `PAGES_PER_RUN` on a faster box.
+
 ## Configuration
 
 Everything lives in `.env`. See `.env.example` for the annotated list.
