@@ -17,6 +17,27 @@ import { CustomUser } from "@/lib/types";
 
 const VERCEL_DEPLOYMENT = !!process.env.VERCEL_URL;
 
+/**
+ * [self-host] Whether the session cookie should carry the `__Secure-` prefix
+ * and the Secure flag.
+ *
+ * Upstream keys this off VERCEL_DEPLOYMENT alone, which breaks sign-in on any
+ * self-hosted instance served over HTTPS: the cookie is written as
+ * `next-auth.session-token`, while getToken() in lib/middleware/app.ts derives
+ * its expected name from NEXTAUTH_URL and looks for
+ * `__Secure-next-auth.session-token`. The names never match, every request
+ * looks unauthenticated, and you are bounced back to /login in a loop.
+ *
+ * It also meant the session cookie was set *without* the Secure flag on an
+ * HTTPS deployment, so it could leak over a plain-HTTP request to the same
+ * host.
+ *
+ * Keying off the scheme in NEXTAUTH_URL fixes both, and matches what getToken()
+ * already assumes.
+ */
+const USE_SECURE_COOKIES =
+  VERCEL_DEPLOYMENT || !!process.env.NEXTAUTH_URL?.startsWith("https://");
+
 function getMainDomainUrl(): string {
   if (process.env.NODE_ENV === "development") {
     return process.env.NEXTAUTH_URL || "http://localhost:3000";
@@ -182,13 +203,13 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   cookies: {
     sessionToken: {
-      name: `${VERCEL_DEPLOYMENT ? "__Secure-" : ""}next-auth.session-token`,
+      name: `${USE_SECURE_COOKIES ? "__Secure-" : ""}next-auth.session-token`,
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
         domain: VERCEL_DEPLOYMENT ? ".papermark.com" : undefined,
-        secure: VERCEL_DEPLOYMENT,
+        secure: USE_SECURE_COOKIES,
       },
     },
   },
